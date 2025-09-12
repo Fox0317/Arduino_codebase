@@ -1,0 +1,2 @@
+# Python requirements for LED Controller System
+numpy>=1.19.0

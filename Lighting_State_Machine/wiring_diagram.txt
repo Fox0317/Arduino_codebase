@@ -1,0 +1,54 @@
+LIGHTING STATE MACHINE - WIRING DIAGRAM
+==========================================
+
+ARDUINO UNO CONNECTIONS:
+========================
+
+Digital Pins:
+- Pin 2 → KY-040 CLK (Clock)
+- Pin 3 → KY-040 DT (Data)  
+- Pin 7 → WS2812B Data In
+
+Power:
+- 5V → KY-040 VCC
+- 5V → WS2812B VCC (external power supply)
+- GND → KY-040 GND
+- GND → WS2812B GND (shared with Arduino)
+
+DETAILED CONNECTIONS:
+=====================
+
+KY-040 ROTARY ENCODER:
+----------------------
+┌─────────┬─────────┐
+│ KY-040  │ Arduino │
+├─────────┼─────────┤
+│ CLK     │ Pin 2   │
+│ DT      │ Pin 3   │
+│ SW      │ Pin 4   │
+│ VCC     │ 5V      │
+│ GND     │ GND     │
+└─────────┴─────────┘
+
+WS2812B LED STRIP:
+------------------
+┌─────────────┬─────────────┐
+│ LED Strip   │ Arduino     │
+├─────────────┼─────────────┤
+│ Data In     │ Pin 7      │
+│ VCC         │ 5V Ext.    │
+│ GND         │ GND        │
+└─────────────┴─────────────┘
+
+POWER SUPPLY REQUIREMENTS:
+=========================
+- Arduino: 5V via USB or external supply
+- LED Strip: 5V external supply (3.6A for 60 LEDs at full brightness)
+- Encoder: Minimal power draw from Arduino 5V
+
+NOTES:
+======
+- Use external 5V power supply for LED strip to avoid USB power limitations
+- Ensure common ground between Arduino and LED strip power supply
+- KY-040 has built-in pull-up resistors, so no external resistors needed
+- For longer LED strips, consider using a logic level converter if needed 

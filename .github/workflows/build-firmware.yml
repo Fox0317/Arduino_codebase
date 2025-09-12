@@ -1,0 +1,34 @@
+name: Build ESP32 Firmware
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Arduino CLI
+      uses: arduino/setup-arduino-cli@v1
+      
+    - name: Install ESP32 core
+      run: arduino-cli core install esp32:esp32
+      
+    - name: Build ESP32 Firmware
+      run: |
+        arduino-cli compile \
+          --fqbn esp32:esp32:esp32s3 \
+          --output-dir ./build \
+          Lighting_State_Machine/Lighting_State_Machine_ESP32.ino
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: build/Lighting_State_Machine_ESP32.ino.bin
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
