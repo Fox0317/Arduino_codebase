@@ -4,12 +4,12 @@
 
 // LED Configuration
 #define NUM_LEDS 1000
-#define LED_PIN 10  // Change this pin for each ESP32 (10, 18, 19)
+#define LED_PIN 2  // Change this pin for each ESP32 (2, 18, 19)
 #define STRIP_ID 0  // Change this for each ESP32 (0, 1, 2)
 
 // WiFi Configuration
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "Captain_Majestic";
+const char* password = "GoFuckYourself";
 
 // UDP Configuration
 WiFiUDP udp;

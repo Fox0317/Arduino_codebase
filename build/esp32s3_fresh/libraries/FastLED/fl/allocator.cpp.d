@@ -1,0 +1,16 @@
+C:\Users\foxwo\OneDrive\Documents\GitHub\Arduino_codebase\build\esp32s3_fresh\libraries\FastLED\fl\allocator.cpp.o: \
+ C:\Users\foxwo\OneDrive\Documents\Arduino\libraries\FastLED\src\fl\allocator.cpp \
+ C:\Users\foxwo\OneDrive\Documents\Arduino\libraries\FastLED\src/fl/allocator.h \
+ C:\Users\foxwo\OneDrive\Documents\Arduino\libraries\FastLED\src/fl/inplacenew.h \
+ C:\Users\foxwo\OneDrive\Documents\Arduino\libraries\FastLED\src/fl/type_traits.h \
+ C:\Users\foxwo\OneDrive\Documents\Arduino\libraries\FastLED\src/fl/namespace.h \
+ C:\Users\foxwo\OneDrive\Documents\Arduino\libraries\FastLED\src/fl/unused.h \
+ C:\Users\foxwo\AppData\Local\Arduino15\packages\esp32\tools\esp32-arduino-libs\idf-release_v5.5-b66b5448-v1\esp32s3/include/heap/include/esp_heap_caps.h \
+ C:\Users\foxwo\AppData\Local\Arduino15\packages\esp32\tools\esp32-arduino-libs\idf-release_v5.5-b66b5448-v1\esp32s3/include/heap/include/multi_heap.h \
+ C:\Users\foxwo\AppData\Local\Arduino15\packages\esp32\tools\esp32-arduino-libs\idf-release_v5.5-b66b5448-v1\esp32s3/include/esp_common/include/esp_err.h \
+ C:\Users\foxwo\AppData\Local\Arduino15\packages\esp32\tools\esp32-arduino-libs\idf-release_v5.5-b66b5448-v1\esp32s3/include/newlib/platform_include/stdio.h \
+ C:\Users\foxwo\AppData\Local\Arduino15\packages\esp32\tools\esp32-arduino-libs\idf-release_v5.5-b66b5448-v1\esp32s3/include/esp_common/include/esp_compiler.h \
+ C:\Users\foxwo\AppData\Local\Arduino15\packages\esp32\tools\esp32-arduino-libs\idf-release_v5.5-b66b5448-v1\esp32s3/include/esp_common/include/esp_attr.h \
+ C:\Users\foxwo\AppData\Local\Arduino15\packages\esp32\tools\esp32-arduino-libs\idf-release_v5.5-b66b5448-v1\esp32s3/include/esp_system/include/esp_system.h \
+ C:\Users\foxwo\AppData\Local\Arduino15\packages\esp32\tools\esp32-arduino-libs\idf-release_v5.5-b66b5448-v1\esp32s3/include/esp_common/include/esp_bit_defs.h \
+ C:\Users\foxwo\AppData\Local\Arduino15\packages\esp32\tools\esp32-arduino-libs\idf-release_v5.5-b66b5448-v1\esp32s3/include/esp_common/include/esp_idf_version.h

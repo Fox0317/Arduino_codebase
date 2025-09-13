@@ -20,7 +20,7 @@ from scipy.fft import fft, fftfreq
 from collections import deque
 
 # LED Configuration
-NUM_LEDS_PER_STRIP = [800, 900, 1000]  # Different lengths for each strip
+NUM_LEDS_PER_STRIP = [5, 5, 5]  # Different lengths for each strip
 NUM_STRIPS = 3
 TOTAL_LEDS = sum(NUM_LEDS_PER_STRIP)
 
@@ -42,7 +42,7 @@ FREQUENCY_SECTION_PERCENTAGES = {
 
 # ESP32 Controller IPs (update these with your actual IPs)
 ESP32_IPS = [
-    "192.168.1.101",  # ESP32 #1 - First 800 LEDs
+    "192.168.68.137",  # ESP32 #1 - First 800 LEDs
     "192.168.1.102",  # ESP32 #2 - Second 900 LEDs  
     "192.168.1.103",  # ESP32 #3 - Third 1000 LEDs
 ]
@@ -52,9 +52,9 @@ UDP_PORT = 8888
 SEND_INTERVAL = 0.05  # Send data every 50ms (20 FPS)
 
 # KY-040 Encoder Configuration (matching ESP32 setup)
-ENCODER_CLK_PIN = 18  # GPIO 18 (D2 equivalent)
-ENCODER_DT_PIN = 19   # GPIO 19 (D3 equivalent) 
-ENCODER_SW_PIN = 20   # GPIO 20 (D4 equivalent)
+ENCODER_CLK_PIN = 17  # GPIO 17 (D2 equivalent)
+ENCODER_DT_PIN = 18   # GPIO 18 (D3 equivalent) 
+ENCODER_SW_PIN = 27   # GPIO 27 (D4 equivalent)
 
 # Audio Configuration
 SAMPLE_RATE = 44100  # Audio sample rate
@@ -256,21 +256,19 @@ class EncoderHandler:
     """Handles KY-040 rotary encoder input for mode selection and brightness control"""
     
     def __init__(self):
-        self.encoder_value = 0
-        self.last_encoder_value = 0
-        self.encoder_button_pressed = False
-        self.last_button_press = 0
-        self.button_state = False
-        self.button_held = False
-        self.encoder_step_counter = 0
-        self.last_interrupt_time = 0
-        self.last_button_interrupt_time = 0
+        # Encoder state tracking
+        self.last_clk_state = None
+        self.last_dt_state = None
+        self.encoder_position = 0
         
-        # Button press/release tracking for global toggle
-        self.button_press_start_time = 0
-        self.button_press_duration = 0
-        self.rotation_during_press = False
-        self.button_released = False
+        # Button state tracking
+        self.button_pressed = False
+        self.button_hold_start = None
+        self.button_hold_duration = 0
+        self.rotation_during_hold = False
+        
+        # Actions to return
+        self.pending_actions = []
         
         # Setup GPIO
         GPIO.setmode(GPIO.BCM)
@@ -278,102 +276,89 @@ class EncoderHandler:
         GPIO.setup(ENCODER_DT_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(ENCODER_SW_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         
-        # Add event detection
-        GPIO.add_event_detect(ENCODER_CLK_PIN, GPIO.BOTH, callback=self._encoder_callback, bouncetime=5)
-        GPIO.add_event_detect(ENCODER_SW_PIN, GPIO.FALLING, callback=self._button_callback, bouncetime=200)
+        # Initialize encoder states
+        self.last_clk_state = GPIO.input(ENCODER_CLK_PIN)
+        self.last_dt_state = GPIO.input(ENCODER_DT_PIN)
+        
+        # Add event detection with longer debounce
+        GPIO.add_event_detect(ENCODER_CLK_PIN, GPIO.BOTH, callback=self._on_clk_change, bouncetime=25)
+        GPIO.add_event_detect(ENCODER_SW_PIN, GPIO.BOTH, callback=self._on_button_change, bouncetime=100)
         
         print("Encoder handler initialized")
     
-    def _encoder_callback(self, channel):
-        """Encoder rotation callback"""
-        current_time = time.time() * 1000  # Convert to milliseconds
+    def _on_clk_change(self, channel):
+        """Called when CLK pin changes state"""
+        current_clk = GPIO.input(ENCODER_CLK_PIN)
+        current_dt = GPIO.input(ENCODER_DT_PIN)
         
-        if current_time - self.last_interrupt_time > 5:  # Debounce
-            clk_state = GPIO.input(ENCODER_CLK_PIN)
-            dt_state = GPIO.input(ENCODER_DT_PIN)
-            
-            if clk_state != dt_state:
-                self.encoder_step_counter += 1
+        # Only process if CLK state actually changed
+        if current_clk != self.last_clk_state:
+            # Determine rotation direction based on DT state when CLK changes
+            if current_dt != current_clk:
+                # Clockwise rotation
+                self.encoder_position += 1
+                self.pending_actions.append("rotate_cw")
             else:
-                self.encoder_step_counter -= 1
+                # Counter-clockwise rotation
+                self.encoder_position -= 1
+                self.pending_actions.append("rotate_ccw")
             
-            # Check if button is held for brightness adjustment
-            button_currently_held = not GPIO.input(ENCODER_SW_PIN)  # Button is active low
+            # Track rotation during button hold
+            if self.button_pressed:
+                self.rotation_during_hold = True
             
-            # Track rotation during button press
-            if button_currently_held and self.button_press_start_time > 0:
-                self.rotation_during_press = True
-            
-            if button_currently_held:
-                # Button is held - adjust brightness
-                if self.encoder_step_counter >= 1:
-                    self.encoder_step_counter = 0
-                    return "brightness_up"
-                elif self.encoder_step_counter <= -1:
-                    self.encoder_step_counter = 0
-                    return "brightness_down"
-            else:
-                # Button not held - change mode (exclude music mode from cycling)
-                if self.encoder_step_counter >= 2:
-                    self.encoder_value += 1
-                    if self.encoder_value >= 17:  # Exclude music mode (17) from cycling
-                        self.encoder_value = 0
-                    self.encoder_step_counter = 0
-                    return "mode_up"
-                elif self.encoder_step_counter <= -2:
-                    self.encoder_value -= 1
-                    if self.encoder_value < 0:
-                        self.encoder_value = 16  # Exclude music mode (17) from cycling
-                    self.encoder_step_counter = 0
-                    return "mode_down"
-        
-        self.last_interrupt_time = current_time
-        return None
+            # Update state
+            self.last_clk_state = current_clk
+            self.last_dt_state = current_dt
     
-    def _button_callback(self, channel):
-        """Button press callback"""
-        current_time = time.time() * 1000  # Convert to milliseconds
+    def _on_button_change(self, channel):
+        """Called when button state changes"""
+        current_button = GPIO.input(ENCODER_SW_PIN)
         
-        if current_time - self.last_button_interrupt_time > 200:  # Debounce
-            button_currently_pressed = not GPIO.input(ENCODER_SW_PIN)  # Button is active low
+        if current_button == 0 and not self.button_pressed:  # Button pressed (active low)
+            self.button_pressed = True
+            self.button_hold_start = time.time()
+            self.rotation_during_hold = False
+            print("Button pressed")
             
-            if button_currently_pressed:
-                # Button pressed - start timing
-                self.button_press_start_time = current_time
-                self.rotation_during_press = False
-                self.button_released = False
-                self.encoder_button_pressed = True
-                print("Encoder button pressed")
-            else:
-                # Button released - check for toggle
-                if self.button_press_start_time > 0:
-                    self.button_press_duration = current_time - self.button_press_start_time
-                    self.button_released = True
-                    print("Encoder button released")
-        
-        self.last_button_interrupt_time = current_time
+        elif current_button == 1 and self.button_pressed:  # Button released
+            self.button_pressed = False
+            if self.button_hold_start:
+                self.button_hold_duration = time.time() - self.button_hold_start
+                self.button_hold_start = None
+                
+                # Check if it was a button-only press (no rotation during hold)
+                if not self.rotation_during_hold and self.button_hold_duration > 0.1:  # At least 100ms
+                    self.pending_actions.append("button_press_only")
+                
+                self.rotation_during_hold = False
+            print("Button released")
     
     def get_encoder_action(self):
         """Get the latest encoder action"""
-        # Check for button-only press (no rotation during press)
-        if self.button_released and self.button_press_start_time > 0:
-            # Reset button tracking
-            self.button_released = False
-            self.button_press_start_time = 0
-            
-            # Check if it was a button-only press (no rotation during press)
-            if not self.rotation_during_press and self.button_press_duration > 100:  # At least 100ms press
-                self.rotation_during_press = False
-                return "toggle_music_mode"
+        if not self.pending_actions:
+            return None
         
-        # Check for regular button press
-        if self.encoder_button_pressed:
-            self.encoder_button_pressed = False
-            return "button_press"
+        action = self.pending_actions.pop(0)
         
-        # Check for rotation
-        action = self._encoder_callback(None)
-        return action
+        if action == "rotate_cw":
+            if self.button_pressed:
+                return "brightness_up"
+            else:
+                # Only increment mode every 2 steps
+                if self.encoder_position % 2 == 0:
+                    return "mode_up"
+        elif action == "rotate_ccw":
+            if self.button_pressed:
+                return "brightness_down"
+            else:
+                # Only decrement mode every 2 steps
+                if self.encoder_position % 2 == 0:
+                    return "mode_down"
+        elif action == "button_press_only":
+            return "toggle_music_mode"
+        
+        return None
     
     def cleanup(self):
         """Cleanup GPIO resources"""
