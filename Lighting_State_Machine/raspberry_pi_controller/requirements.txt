@@ -1,0 +1,6 @@
+# Audio Test Requirements
+pyaudio>=0.2.11
+numpy>=1.21.0
+
+# LED Controller Requirements (if running main controller)
+RPi.GPIO>=0.7.1

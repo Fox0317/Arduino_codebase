@@ -1,0 +1,25 @@
+[Unit]
+Description=LED Controller Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
+ExecStart=/home/pi/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/start_led_controller.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment variables
+Environment="PYTHONUNBUFFERED=1"
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+
