@@ -9,11 +9,15 @@ CONTROLLER_FILE="$SCRIPT_DIR/led_controller.py"
 GITHUB_REPO="Fox0317/Arduino_codebase"  # Only your repo, no cloning
 GITHUB_BRANCH="main"
 GITHUB_FILE_PATH="Lighting_State_Machine/raspberry_pi_controller/led_controller.py"  # Only this file
-LOG_FILE="/var/log/led_controller_update.log"
+# Use log file in script directory (user has write permissions here)
+LOG_FILE="$SCRIPT_DIR/led_controller_update.log"
 
 # Create log file if it doesn't exist
-mkdir -p "$(dirname "$LOG_FILE")"
-touch "$LOG_FILE"
+touch "$LOG_FILE" 2>/dev/null || {
+    # Fallback to home directory if script directory is not writable
+    LOG_FILE="$HOME/led_controller_update.log"
+    touch "$LOG_FILE"
+}
 
 log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"

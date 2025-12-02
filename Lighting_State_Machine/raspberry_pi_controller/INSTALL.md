@@ -28,8 +28,8 @@ Replace `YOUR_GITHUB_USERNAME` with your actual GitHub username.
 Edit `led-controller.service` and update the paths to match your installation:
 
 ```ini
-WorkingDirectory=/home/pi/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
-ExecStart=/home/pi/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/start_led_controller.sh
+WorkingDirectory=/home/Fox0317/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
+ExecStart=/home/Fox0317/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/start_led_controller.sh
 ```
 
 Adjust these paths to match where you've installed the files on your Raspberry Pi.
@@ -54,7 +54,7 @@ Test the update script manually first:
 Check the log file to verify it works:
 
 ```bash
-cat /var/log/led_controller_update.log
+cat led_controller_update.log
 ```
 
 ### 5. Test the Startup Script
@@ -68,7 +68,7 @@ Test the startup script manually:
 Press Ctrl+C to stop it. Check the log:
 
 ```bash
-cat /var/log/led_controller.log
+cat led_controller.log
 ```
 
 ### 6. Install Systemd Service
@@ -146,12 +146,14 @@ sudo journalctl -u led-controller.service -f
 
 ### View Update Logs
 ```bash
-cat /var/log/led_controller_update.log
+# Log file is in the script directory
+cat ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/led_controller_update.log
 ```
 
 ### View Controller Logs
 ```bash
-cat /var/log/led_controller.log
+# Log file is in the script directory
+cat ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/led_controller.log
 ```
 
 ### Stop the Service
@@ -201,7 +203,7 @@ sudo systemctl disable led-controller.service
 
 3. Check update log:
    ```bash
-   cat /var/log/led_controller_update.log
+   cat ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/led_controller_update.log
    ```
 
 4. Test update script manually:
@@ -213,7 +215,7 @@ sudo systemctl disable led-controller.service
 
 1. Check controller logs:
    ```bash
-   cat /var/log/led_controller.log
+   cat ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/led_controller.log
    ```
 
 2. Check systemd logs:
@@ -279,22 +281,26 @@ crontab -e
 
 Add:
 ```
-0 3 * * * /home/pi/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/update_from_github.sh && sudo systemctl restart led-controller.service
+0 3 * * * /home/Fox0317/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/update_from_github.sh && sudo systemctl restart led-controller.service
 ```
 
 This updates daily at 3 AM.
 
 ### Change Log Locations
 
-Edit the log file paths in:
+Log files are stored in the script directory by default (where the user has write permissions). To change log locations, edit the log file paths in:
 - `update_from_github.sh`: `LOG_FILE` variable
 - `start_led_controller.sh`: `LOG_FILE` variable
+
+By default, logs are stored in:
+- `~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/led_controller_update.log`
+- `~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/led_controller.log`
 
 ### Change Service User
 
 Edit `led-controller.service` and change:
 ```ini
-User=pi
+User=Fox0317
 ```
 
 To your desired user.

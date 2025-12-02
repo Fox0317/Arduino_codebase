@@ -47,7 +47,7 @@ sed -i "s|GITHUB_BRANCH=\"main\"|GITHUB_BRANCH=\"$GITHUB_BRANCH\"|g" update_from
 FULL_PATH="$SCRIPT_DIR"
 sed -i "s|WorkingDirectory=.*|WorkingDirectory=$FULL_PATH|g" led-controller.service
 sed -i "s|ExecStart=.*|ExecStart=$FULL_PATH/start_led_controller.sh|g" led-controller.service
-sed -i "s|User=pi|User=$CURRENT_USER|g" led-controller.service
+sed -i "s|User=Fox0317|User=$CURRENT_USER|g" led-controller.service
 
 echo "Configuration updated!"
 echo ""
@@ -105,8 +105,8 @@ echo "  View service logs:   sudo journalctl -u led-controller.service -f"
 echo "  Restart service:      sudo systemctl restart led-controller.service"
 echo "  Stop service:        sudo systemctl stop led-controller.service"
 echo ""
-echo "Log files:"
-echo "  Update log:  /var/log/led_controller_update.log"
-echo "  Controller:  /var/log/led_controller.log"
+echo "Log files (in script directory):"
+echo "  Update log:  $FULL_PATH/led_controller_update.log"
+echo "  Controller:  $FULL_PATH/led_controller.log"
 echo ""
 

@@ -5,9 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
-ExecStart=/home/pi/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/start_led_controller.sh
+User=Fox0317
+WorkingDirectory=/home/Fox0317/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
+ExecStart=/home/Fox0317/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/start_led_controller.sh
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -23,3 +23,6 @@ PrivateTmp=true
 [Install]
 WantedBy=multi-user.target
 
+   cd ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
+   chmod +x setup.sh
+   ./setup.sh

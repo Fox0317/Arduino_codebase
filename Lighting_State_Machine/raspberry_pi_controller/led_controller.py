@@ -2,7 +2,7 @@
 """
 Raspberry Pi LED Controller
 Calculates LED pixel values and sends data to four ESP32 controllers
-Each ESP32 controls 243 LEDs (1275 total)
+Each ESP32 controls 243 LEDs (1275 total) testing commit
 """
 
 import socket
