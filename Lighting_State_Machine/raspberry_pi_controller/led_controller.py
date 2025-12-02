@@ -2,7 +2,7 @@
 """
 Raspberry Pi LED Controller
 Calculates LED pixel values and sends data to four ESP32 controllers
-Each ESP32 controls 243 LEDs (1275 total) #1
+Each ESP32 controls 243 LEDs (1275 total) #2
 """
 
 import socket
@@ -48,7 +48,7 @@ SPDT_PIN_B = 23  # GPIO 23 - Second switch position
 # Animation state
 class AnimationState:
     def __init__(self):
-        self.current_mode = 9
+        self.current_mode = 0
         self.brightness = 255
         self.hue = 0
         self.animation_step = 0
