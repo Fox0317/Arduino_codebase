@@ -60,6 +60,11 @@ class AnimationState:
         self.aurora_phase = 0
         self.aurora_hue = 96
         
+        # Christmas animation state
+        self.christmas_wave_phase = 0
+        self.christmas_candle_heat = [[0] * count for count in NUM_LEDS_PER_STRIP]
+        self.christmas_twinkle_state = [[0] * count for count in NUM_LEDS_PER_STRIP]
+        
 
 # LED modes
 class LEDModes:
@@ -75,6 +80,11 @@ class LEDModes:
     FIRE = 9
     AURORA = 10
     TWINKLE = 11
+    CHRISTMAS_ALTERNATING = 12
+    CHRISTMAS_TWINKLE = 13
+    CHRISTMAS_WAVE = 14
+    CHRISTMAS_CANDLE = 15
+    CHRISTMAS_GRADIENT = 16
 
 
 
@@ -490,6 +500,144 @@ class LEDController:
         
         return pixels
 
+    def mode_christmas_alternating(self, strip_index: int) -> List[bytes]:
+        """Christmas alternating red and green pattern"""
+        pixels = []
+        led_count = NUM_LEDS_PER_STRIP[strip_index]
+        
+        for i in range(led_count):
+            if (i + self.state.animation_step) % 2 == 0:
+                # Red
+                pixels.append(self.rgb_to_bytes(255, 0, 0))
+            else:
+                # Green
+                pixels.append(self.rgb_to_bytes(0, 255, 0))
+        
+        return pixels
+
+    def mode_christmas_twinkle(self, strip_index: int) -> List[bytes]:
+        """Christmas twinkling red and green lights"""
+        pixels = []
+        led_count = NUM_LEDS_PER_STRIP[strip_index]
+        
+        for i in range(led_count):
+            # Randomly sparkle new lights
+            if random.randint(0, 255) < 15:
+                # Randomly choose red or green
+                color = random.choice(['red', 'green'])
+                if color == 'red':
+                    self.state.christmas_twinkle_state[strip_index][i] = 255
+                else:
+                    self.state.christmas_twinkle_state[strip_index][i] = -255  # Negative for green
+            else:
+                # Fade existing twinkles
+                if abs(self.state.christmas_twinkle_state[strip_index][i]) > 0:
+                    fade_amount = 15
+                    if self.state.christmas_twinkle_state[strip_index][i] > 0:
+                        self.state.christmas_twinkle_state[strip_index][i] = max(0, self.state.christmas_twinkle_state[strip_index][i] - fade_amount)
+                    else:
+                        self.state.christmas_twinkle_state[strip_index][i] = min(0, self.state.christmas_twinkle_state[strip_index][i] + fade_amount)
+            
+            # Convert state to color
+            state = self.state.christmas_twinkle_state[strip_index][i]
+            if state > 0:
+                # Red twinkle
+                pixels.append(self.rgb_to_bytes(int(state), 0, 0))
+            elif state < 0:
+                # Green twinkle
+                pixels.append(self.rgb_to_bytes(0, int(-state), 0))
+            else:
+                # Off
+                pixels.append(self.rgb_to_bytes(0, 0, 0))
+        
+        return pixels
+
+    def mode_christmas_wave(self, strip_index: int) -> List[bytes]:
+        """Christmas wave pattern with red and green flowing waves"""
+        pixels = []
+        led_count = NUM_LEDS_PER_STRIP[strip_index]
+        
+        for i in range(led_count):
+            # Create two waves - one red, one green
+            red_wave = int(127 * (1 + math.sin((self.state.christmas_wave_phase + i * 0.3) * math.pi / 64)))
+            green_wave = int(127 * (1 + math.sin((self.state.christmas_wave_phase + i * 0.3 + math.pi) * math.pi / 64)))
+            
+            # Ensure minimum brightness for visibility
+            red = max(50, min(255, red_wave))
+            green = max(50, min(255, green_wave))
+            
+            pixels.append(self.rgb_to_bytes(red, green, 0))
+        
+        return pixels
+
+    def mode_christmas_candle(self, strip_index: int) -> List[bytes]:
+        """Christmas candle flicker effect with warm red/orange colors"""
+        pixels = []
+        led_count = NUM_LEDS_PER_STRIP[strip_index]
+        
+        for i in range(led_count):
+            # Cool down every cell
+            self.state.christmas_candle_heat[strip_index][i] = max(0, self.state.christmas_candle_heat[strip_index][i] - random.randint(1, 3))
+            
+            # Heat diffusion
+            if i > 0:
+                left_heat = self.state.christmas_candle_heat[strip_index][i-1]
+                self.state.christmas_candle_heat[strip_index][i] = max(self.state.christmas_candle_heat[strip_index][i], left_heat * 0.3)
+            
+            # Random flicker
+            if random.randint(0, 255) < 40:
+                self.state.christmas_candle_heat[strip_index][i] = min(255, self.state.christmas_candle_heat[strip_index][i] + random.randint(30, 80))
+            
+            # Convert heat to warm red/orange colors
+            heat = self.state.christmas_candle_heat[strip_index][i]
+            if heat < 80:
+                # Dark red
+                r = int(heat * 2)
+                g = int(heat * 0.3)
+                b = 0
+            elif heat < 160:
+                # Red to orange
+                r = 255
+                g = int(80 + (heat - 80) * 2)
+                b = 0
+            else:
+                # Orange to yellow-orange
+                r = 255
+                g = int(240 + (heat - 160) * 0.2)
+                b = int((heat - 160) * 0.1)
+            
+            pixels.append(self.rgb_to_bytes(min(255, r), min(255, g), min(255, b)))
+        
+        return pixels
+
+    def mode_christmas_gradient(self, strip_index: int) -> List[bytes]:
+        """Christmas gradient pattern with smooth red to green transitions"""
+        pixels = []
+        led_count = NUM_LEDS_PER_STRIP[strip_index]
+        
+        # Create a moving gradient pattern
+        phase = (self.state.christmas_wave_phase * 2) % (led_count * 2)
+        
+        for i in range(led_count):
+            # Calculate position in gradient cycle
+            pos = (i + phase) % (led_count * 2)
+            
+            if pos < led_count:
+                # Red to green transition
+                ratio = pos / led_count
+                r = int(255 * (1 - ratio))
+                g = int(255 * ratio)
+                b = 0
+            else:
+                # Green to red transition
+                ratio = (pos - led_count) / led_count
+                r = int(255 * ratio)
+                g = int(255 * (1 - ratio))
+                b = 0
+            
+            pixels.append(self.rgb_to_bytes(r, g, b))
+        
+        return pixels
 
     def mode_color(self, strip_index: int, r_base: int, g_base: int, b_base: int) -> List[bytes]:
         """Color mode with fixed brightness"""
@@ -532,6 +680,16 @@ class LEDController:
             return self.mode_aurora(strip_index)
         elif mode == LEDModes.TWINKLE:
             return self.mode_twinkle(strip_index)
+        elif mode == LEDModes.CHRISTMAS_ALTERNATING:
+            return self.mode_christmas_alternating(strip_index)
+        elif mode == LEDModes.CHRISTMAS_TWINKLE:
+            return self.mode_christmas_twinkle(strip_index)
+        elif mode == LEDModes.CHRISTMAS_WAVE:
+            return self.mode_christmas_wave(strip_index)
+        elif mode == LEDModes.CHRISTMAS_CANDLE:
+            return self.mode_christmas_candle(strip_index)
+        elif mode == LEDModes.CHRISTMAS_GRADIENT:
+            return self.mode_christmas_gradient(strip_index)
         else:
             return self.mode_white(strip_index)
 
@@ -595,6 +753,10 @@ class LEDController:
         if self.state.current_mode == LEDModes.AURORA:
             self.state.aurora_phase = (self.state.aurora_phase + 1) % 1000
         
+        # Update Christmas wave phase
+        if self.state.current_mode in [LEDModes.CHRISTMAS_WAVE, LEDModes.CHRISTMAS_GRADIENT]:
+            self.state.christmas_wave_phase = (self.state.christmas_wave_phase + 1) % 1000
+        
 
     def run_animation_loop(self):
         """Main animation loop"""
@@ -645,10 +807,10 @@ class LEDController:
         action = self.encoder.get_encoder_action()
         
         if action == "mode_up":
-            self.state.current_mode = (self.state.current_mode + 1) % 12
+            self.state.current_mode = (self.state.current_mode + 1) % 17
             print(f"Mode changed to: {self.state.current_mode}")
         elif action == "mode_down":
-            self.state.current_mode = (self.state.current_mode - 1) % 12
+            self.state.current_mode = (self.state.current_mode - 1) % 17
             print(f"Mode changed to: {self.state.current_mode}")
         elif action == "brightness_up":
             self.state.brightness = min(255, self.state.brightness + 12)
@@ -726,12 +888,16 @@ def main():
             # Interactive mode - show command interface
             print("LED Controller started. Commands:")
             print("m <mode> - Set mode (0-16)")
+            print("  Modes: 0=White, 1=Red, 2=Yellow, 3=Green, 4=Cyan, 5=Blue, 6=Magenta")
+            print("         7=Solid Color, 8=Rainbow, 9=Fire, 10=Aurora, 11=Twinkle")
+            print("         12=Christmas Alternating, 13=Christmas Twinkle, 14=Christmas Wave")
+            print("         15=Christmas Candle, 16=Christmas Gradient")
             print("b <brightness> - Set brightness (0-255)")
             print("s <strip> <on/off> - Set strip active state")
             print("sw - Check SPDT switch status")
             print("q - Quit")
             print("\nEncoder Controls:")
-            print("- Rotate encoder: Change mode (0-16)")
+            print("- Rotate encoder: Change mode (0-16, includes 5 Christmas modes)")
             print("- Hold button + rotate: Adjust brightness")
             print("- Press button only: No action")
             print("\nLED Configuration:")
