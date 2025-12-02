@@ -2,29 +2,23 @@
 Description=LED Controller Service
 After=network-online.target
 Wants=network-online.target
-Requires=network-online.target
 
 [Service]
 Type=simple
 User=Fox0317
 Group=Fox0317
 WorkingDirectory=/home/Fox0317/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
-ExecStart=/bin/bash /home/Fox0317/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/start_led_controller.sh
+ExecStart=/bin/bash /home/Fox0317/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/run_led_controller.sh
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
-# Environment variables
+# Environment
 Environment="PYTHONUNBUFFERED=1"
-Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="HOME=/home/Fox0317"
 
-# Security settings (relaxed for GPIO access)
-NoNewPrivileges=false
-PrivateTmp=false
-
-# Allow access to GPIO
+# GPIO access
 SupplementaryGroups=gpio
 
 [Install]
