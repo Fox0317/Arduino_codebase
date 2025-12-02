@@ -104,21 +104,32 @@ fi
 
 log "Running: python3 $CONTROLLER_FILE"
 log "Output will be logged to: $LOG_FILE"
-log "NOTE: If led_controller.py uses input(), it may fail when run as a service"
 
 # Run Python script and redirect all output to log file
 # Use unbuffered Python output for real-time logging
-# Note: If the Python script calls input(), it will raise EOFError when stdin is not available
+# The script now detects non-interactive mode automatically
+log "Starting Python script..."
 PYTHONUNBUFFERED=1 python3 "$CONTROLLER_FILE" >> "$LOG_FILE" 2>&1
 
 EXIT_CODE=$?
 log "LED Controller exited with code: $EXIT_CODE"
 
 if [ $EXIT_CODE -ne 0 ]; then
-    log "ERROR: Controller failed. Last 20 lines of output:"
-    tail -n 20 "$LOG_FILE" | while IFS= read -r line; do
-        log "  $line"
-    done
+    log "ERROR: Controller failed with exit code $EXIT_CODE"
+    log "Last 30 lines of controller output:"
+    if [ -f "$LOG_FILE" ]; then
+        tail -n 30 "$LOG_FILE" | while IFS= read -r line; do
+            log "  $line"
+        done
+    else
+        log "  Log file not found at $LOG_FILE"
+    fi
+    
+    log "Common causes:"
+    log "  1. Missing Python dependencies (RPi.GPIO, etc.)"
+    log "  2. GPIO permission issues"
+    log "  3. File not found or path issues"
+    log "  4. Network connectivity issues (ESP32 connections)"
 fi
 
 exit $EXIT_CODE

@@ -2,7 +2,7 @@
 """
 Raspberry Pi LED Controller
 Calculates LED pixel values and sends data to four ESP32 controllers
-Each ESP32 controls 243 LEDs (1275 total) #
+Each ESP32 controls 243 LEDs (1275 total) #1
 """
 
 import socket
@@ -11,6 +11,7 @@ import time
 import math
 import random
 import threading
+import sys
 from typing import List, Tuple
 import RPi.GPIO as GPIO
 
@@ -188,7 +189,11 @@ class EncoderHandler:
     
     def cleanup(self):
         """Cleanup GPIO resources"""
-        GPIO.cleanup()
+        try:
+            GPIO.cleanup()
+        except RuntimeError:
+            # GPIO mode not set, nothing to cleanup
+            pass
 
 
 class SPDTSwitchHandler:
@@ -266,8 +271,13 @@ class SPDTSwitchHandler:
     
     def cleanup(self):
         """Cleanup GPIO resources"""
-        GPIO.remove_event_detect(SPDT_PIN_A)
-        GPIO.remove_event_detect(SPDT_PIN_B)
+        try:
+            # Check if GPIO mode is set before trying to cleanup
+            GPIO.remove_event_detect(SPDT_PIN_A)
+            GPIO.remove_event_detect(SPDT_PIN_B)
+        except RuntimeError:
+            # GPIO mode not set, nothing to cleanup
+            pass
 
 
 class LEDController:
@@ -709,55 +719,72 @@ def main():
         animation_thread.daemon = True
         animation_thread.start()
         
+        # Check if running in interactive mode (has TTY)
+        is_interactive = sys.stdin.isatty()
         
-        # Simple command interface
-        print("LED Controller started. Commands:")
-        print("m <mode> - Set mode (0-16)")
-        print("b <brightness> - Set brightness (0-255)")
-        print("s <strip> <on/off> - Set strip active state")
-        print("sw - Check SPDT switch status")
-        print("q - Quit")
-        print("\nEncoder Controls:")
-        print("- Rotate encoder: Change mode (0-16)")
-        print("- Hold button + rotate: Adjust brightness")
-        print("- Press button only: No action")
-        print("\nLED Configuration:")
-        print(f"- Strip 1: {NUM_LEDS_PER_STRIP[0]} LEDs")
-        print(f"- Strip 2: {NUM_LEDS_PER_STRIP[1]} LEDs")
-        print(f"- Strip 3: {NUM_LEDS_PER_STRIP[2]} LEDs")
-        print(f"- Strip 4: {NUM_LEDS_PER_STRIP[3]} LEDs")
-        print(f"- Total: {TOTAL_LEDS} LEDs")
-        print("\nUDP Packet Structure:")
-        print("- Byte 0: Strip index (0-3)")
-        print("- Byte 1: Brightness (0-255)")
-        print("- Byte 2: SPDT status (0=None, 1=Position A, 2=Position B)")
-        print("- Bytes 3+: LED data (RGB per LED)")
-        
-        while True:
-            try:
-                command = input("> ").strip().split()
-                if not command:
-                    continue
-                
-                if command[0] == 'q':
+        if is_interactive:
+            # Interactive mode - show command interface
+            print("LED Controller started. Commands:")
+            print("m <mode> - Set mode (0-16)")
+            print("b <brightness> - Set brightness (0-255)")
+            print("s <strip> <on/off> - Set strip active state")
+            print("sw - Check SPDT switch status")
+            print("q - Quit")
+            print("\nEncoder Controls:")
+            print("- Rotate encoder: Change mode (0-16)")
+            print("- Hold button + rotate: Adjust brightness")
+            print("- Press button only: No action")
+            print("\nLED Configuration:")
+            print(f"- Strip 1: {NUM_LEDS_PER_STRIP[0]} LEDs")
+            print(f"- Strip 2: {NUM_LEDS_PER_STRIP[1]} LEDs")
+            print(f"- Strip 3: {NUM_LEDS_PER_STRIP[2]} LEDs")
+            print(f"- Strip 4: {NUM_LEDS_PER_STRIP[3]} LEDs")
+            print(f"- Total: {TOTAL_LEDS} LEDs")
+            print("\nUDP Packet Structure:")
+            print("- Byte 0: Strip index (0-3)")
+            print("- Byte 1: Brightness (0-255)")
+            print("- Byte 2: SPDT status (0=None, 1=Position A, 2=Position B)")
+            print("- Bytes 3+: LED data (RGB per LED)")
+            
+            # Command loop for interactive mode
+            while True:
+                try:
+                    command = input("> ").strip().split()
+                    if not command:
+                        continue
+                    
+                    if command[0] == 'q':
+                        break
+                    elif command[0] == 'm' and len(command) > 1:
+                        controller.set_mode(int(command[1]))
+                    elif command[0] == 'b' and len(command) > 1:
+                        controller.set_brightness(int(command[1]))
+                    elif command[0] == 's' and len(command) > 2:
+                        strip = int(command[1]) - 1
+                        active = command[2].lower() == 'on'
+                        controller.set_strip_active(strip, active)
+                    elif command[0] == 'sw':
+                        position = controller.spdt_switch.get_switch_position()
+                        print(f"SPDT Switch position: {position}")
+                    else:
+                        print("Invalid command")
+                except (ValueError, IndexError):
+                    print("Invalid command format")
+                except (KeyboardInterrupt, EOFError):
                     break
-                elif command[0] == 'm' and len(command) > 1:
-                    controller.set_mode(int(command[1]))
-                elif command[0] == 'b' and len(command) > 1:
-                    controller.set_brightness(int(command[1]))
-                elif command[0] == 's' and len(command) > 2:
-                    strip = int(command[1]) - 1
-                    active = command[2].lower() == 'on'
-                    controller.set_strip_active(strip, active)
-                elif command[0] == 'sw':
-                    position = controller.spdt_switch.get_switch_position()
-                    print(f"SPDT Switch position: {position}")
-                else:
-                    print("Invalid command")
-            except (ValueError, IndexError):
-                print("Invalid command format")
+        else:
+            # Non-interactive mode (service mode) - run continuously
+            print("LED Controller started in service mode (non-interactive)")
+            print(f"Total LEDs: {TOTAL_LEDS}")
+            print("Encoder and SPDT switch controls are active")
+            print("Controller running continuously...")
+            
+            # Keep the main thread alive while animation runs
+            try:
+                while controller.running:
+                    time.sleep(1)
             except KeyboardInterrupt:
-                break
+                print("\nShutting down...")
     
     finally:
         controller.stop()
