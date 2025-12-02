@@ -63,6 +63,9 @@ class AnimationState:
         # Christmas animation state
         self.christmas_twinkle_state = [[0] * count for count in NUM_LEDS_PER_STRIP]
         
+        # Warm white to colorful fade state
+        self.fade_cycle_start_time = time.time()
+        
 
 # LED modes
 class LEDModes:
@@ -79,6 +82,7 @@ class LEDModes:
     AURORA = 10
     TWINKLE = 11
     CHRISTMAS_TWINKLE = 12
+    WARM_WHITE_COLORFUL_FADE = 13
 
 
 
@@ -531,6 +535,79 @@ class LEDController:
         
         return pixels
 
+    def mode_warm_white_colorful_fade(self, strip_index: int) -> List[bytes]:
+        """Fades between warm white and colorful mix (blue, purple, red, green, yellow)"""
+        pixels = []
+        led_count = NUM_LEDS_PER_STRIP[strip_index]
+        
+        # Cycle timing: 2s fade to warm white, 5s hold, 2s fade to colorful, 5s hold = 14s total
+        CYCLE_TIME = 14.0
+        FADE_TIME = 2.0
+        HOLD_TIME = 5.0
+        
+        # Calculate time in current cycle
+        current_time = time.time()
+        cycle_time = (current_time - self.state.fade_cycle_start_time) % CYCLE_TIME
+        
+        # Determine phase and fade progress
+        if cycle_time < FADE_TIME:
+            # Fading to warm white
+            fade_progress = cycle_time / FADE_TIME
+            phase = "fade_to_warm"
+        elif cycle_time < FADE_TIME + HOLD_TIME:
+            # Holding warm white
+            fade_progress = 1.0
+            phase = "hold_warm"
+        elif cycle_time < FADE_TIME * 2 + HOLD_TIME:
+            # Fading to colorful
+            fade_progress = (cycle_time - FADE_TIME - HOLD_TIME) / FADE_TIME
+            phase = "fade_to_colorful"
+        else:
+            # Holding colorful
+            fade_progress = 1.0
+            phase = "hold_colorful"
+        
+        # Warm white color (slightly amber/yellow tinted)
+        warm_white = (255, 220, 180)
+        
+        # Colorful mix colors: blue, purple, red, green, yellow
+        colorful_colors = [
+            (0, 0, 255),      # Blue
+            (128, 0, 128),    # Purple
+            (255, 0, 0),      # Red
+            (0, 255, 0),      # Green
+            (255, 255, 0),   # Yellow
+        ]
+        
+        for i in range(led_count):
+            if phase in ["fade_to_warm", "hold_warm"]:
+                # Show warm white (fading in if needed)
+                if phase == "fade_to_warm":
+                    r = int(warm_white[0] * fade_progress)
+                    g = int(warm_white[1] * fade_progress)
+                    b = int(warm_white[2] * fade_progress)
+                else:
+                    r, g, b = warm_white
+                pixels.append(self.rgb_to_bytes(r, g, b))
+            else:
+                # Show colorful mix (fading in if needed)
+                # Distribute colors across the strip
+                color_index = (i * len(colorful_colors)) // led_count
+                base_color = colorful_colors[color_index]
+                
+                if phase == "fade_to_colorful":
+                    # Fade from warm white to colorful
+                    r = int(warm_white[0] * (1 - fade_progress) + base_color[0] * fade_progress)
+                    g = int(warm_white[1] * (1 - fade_progress) + base_color[1] * fade_progress)
+                    b = int(warm_white[2] * (1 - fade_progress) + base_color[2] * fade_progress)
+                else:
+                    # Hold colorful
+                    r, g, b = base_color
+                
+                pixels.append(self.rgb_to_bytes(r, g, b))
+        
+        return pixels
+
     def mode_color(self, strip_index: int, r_base: int, g_base: int, b_base: int) -> List[bytes]:
         """Color mode with fixed brightness"""
         pixels = []
@@ -574,6 +651,8 @@ class LEDController:
             return self.mode_twinkle(strip_index)
         elif mode == LEDModes.CHRISTMAS_TWINKLE:
             return self.mode_christmas_twinkle(strip_index)
+        elif mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
+            return self.mode_warm_white_colorful_fade(strip_index)
         else:
             return self.mode_white(strip_index)
 
@@ -687,10 +766,16 @@ class LEDController:
         action = self.encoder.get_encoder_action()
         
         if action == "mode_up":
-            self.state.current_mode = (self.state.current_mode + 1) % 13
+            self.state.current_mode = (self.state.current_mode + 1) % 14
+            # Reset fade cycle when entering warm white colorful fade mode
+            if self.state.current_mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
+                self.state.fade_cycle_start_time = time.time()
             print(f"Mode changed to: {self.state.current_mode}")
         elif action == "mode_down":
-            self.state.current_mode = (self.state.current_mode - 1) % 13
+            self.state.current_mode = (self.state.current_mode - 1) % 14
+            # Reset fade cycle when entering warm white colorful fade mode
+            if self.state.current_mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
+                self.state.fade_cycle_start_time = time.time()
             print(f"Mode changed to: {self.state.current_mode}")
         elif action == "brightness_up":
             self.state.brightness = min(255, self.state.brightness + 12)
@@ -728,6 +813,9 @@ class LEDController:
     def set_mode(self, mode: int):
         """Set LED mode"""
         self.state.current_mode = mode
+        # Reset fade cycle when entering warm white colorful fade mode
+        if mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
+            self.state.fade_cycle_start_time = time.time()
         print(f"Mode changed to: {mode}")
 
     def set_brightness(self, brightness: int):
@@ -767,16 +855,16 @@ def main():
         if is_interactive:
             # Interactive mode - show command interface
             print("LED Controller started. Commands:")
-            print("m <mode> - Set mode (0-12)")
+            print("m <mode> - Set mode (0-13)")
             print("  Modes: 0=White, 1=Red, 2=Yellow, 3=Green, 4=Cyan, 5=Blue, 6=Magenta")
             print("         7=Solid Color, 8=Rainbow, 9=Fire, 10=Aurora, 11=Twinkle")
-            print("         12=Christmas Twinkle")
+            print("         12=Christmas Twinkle, 13=Warm White/Colorful Fade")
             print("b <brightness> - Set brightness (0-255)")
             print("s <strip> <on/off> - Set strip active state")
             print("sw - Check SPDT switch status")
             print("q - Quit")
             print("\nEncoder Controls:")
-            print("- Rotate encoder: Change mode (0-12)")
+            print("- Rotate encoder: Change mode (0-13)")
             print("- Hold button + rotate: Adjust brightness")
             print("- Press button only: No action")
             print("\nLED Configuration:")
