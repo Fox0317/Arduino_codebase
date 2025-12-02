@@ -36,14 +36,7 @@ GITHUB_RAW_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH
 log_message "GitHub URL: $GITHUB_RAW_URL"
 log_message "Only updating led_controller.py - no repository cloning"
 
-# Create backup of current file
-if [ -f "$CONTROLLER_FILE" ]; then
-    BACKUP_FILE="${CONTROLLER_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
-    cp "$CONTROLLER_FILE" "$BACKUP_FILE"
-    log_message "Created backup: $BACKUP_FILE"
-fi
-
-# Download latest version
+# Download latest version (no backup created)
 log_message "Downloading latest version from GitHub..."
 TEMP_FILE="${CONTROLLER_FILE}.tmp"
 
@@ -54,9 +47,6 @@ if curl -s -f -L -o "$TEMP_FILE" "$GITHUB_RAW_URL"; then
         mv "$TEMP_FILE" "$CONTROLLER_FILE"
         chmod +x "$CONTROLLER_FILE"
         log_message "Successfully updated led_controller.py from GitHub"
-        
-        # Keep only last 5 backups
-        ls -t "${CONTROLLER_FILE}.backup."* 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
     else
         log_message "ERROR: Downloaded file is not valid Python. Keeping existing file."
         rm -f "$TEMP_FILE"

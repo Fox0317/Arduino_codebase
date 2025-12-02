@@ -1,7 +1,9 @@
 #!/bin/bash
 # Startup script for LED Controller
 # Updates from GitHub, then launches the controller
+# Note: We don't use 'set -e' so we can handle errors gracefully and log them
 
+# Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTROLLER_FILE="$SCRIPT_DIR/led_controller.py"
 UPDATE_SCRIPT="$SCRIPT_DIR/update_from_github.sh"
@@ -16,13 +18,28 @@ touch "$LOG_FILE" 2>/dev/null || {
 }
 
 log_message() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE" || echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
+# Also log to stderr for systemd journal
+log_error() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $1" >&2
+    log_message "ERROR: $1"
+}
+
+log_message "=========================================="
 log_message "Starting LED Controller startup script"
+log_message "Script directory: $SCRIPT_DIR"
+log_message "User: $(whoami)"
+log_message "Home: $HOME"
+log_message "PATH: $PATH"
 
 # Change to script directory
-cd "$SCRIPT_DIR" || exit 1
+if ! cd "$SCRIPT_DIR"; then
+    log_error "Failed to change to script directory: $SCRIPT_DIR"
+    exit 1
+fi
+log_message "Changed to directory: $(pwd)"
 
 # Only run update on system boot, not on service restarts
 # Use a flag file to track if update has run for current boot
@@ -54,8 +71,13 @@ if [ -f "$UPDATE_SCRIPT" ]; then
     
     if [ "$RUN_UPDATE" = true ]; then
         log_message "Running update script..."
-        bash "$UPDATE_SCRIPT"
-        # Create/update flag file to mark update has run for this boot
+        if bash "$UPDATE_SCRIPT"; then
+            log_message "Update script completed successfully"
+        else
+            UPDATE_EXIT=$?
+            log_error "Update script failed with exit code $UPDATE_EXIT, but continuing anyway"
+        fi
+        # Create/update flag file to mark update has run for this boot (even if it failed)
         touch "$BOOT_FLAG_FILE"
     fi
 else
@@ -67,27 +89,51 @@ sleep 1
 
 # Check if controller file exists
 if [ ! -f "$CONTROLLER_FILE" ]; then
-    log_message "ERROR: Controller file not found at $CONTROLLER_FILE"
+    log_error "Controller file not found at $CONTROLLER_FILE"
+    log_error "Current directory: $(pwd)"
+    log_error "Files in directory: $(ls -la)"
     exit 1
 fi
+
+log_message "Controller file found: $CONTROLLER_FILE"
 
 # Make sure controller file is executable
-chmod +x "$CONTROLLER_FILE"
+if ! chmod +x "$CONTROLLER_FILE" 2>/dev/null; then
+    log_error "Failed to make controller file executable"
+    exit 1
+fi
+log_message "Controller file is executable"
 
-# Launch the controller
-log_message "Launching LED Controller..."
-log_message "Python path: $(which python3)"
-log_message "Controller file: $CONTROLLER_FILE"
-log_message "Working directory: $(pwd)"
+# Pre-launch checks complete
+log_message "All pre-launch checks passed"
 
 # Check if Python is available
-if ! command -v python3 &> /dev/null; then
-    log_message "ERROR: python3 not found in PATH"
+PYTHON_CMD=""
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD=$(which python3)
+elif [ -f "/usr/bin/python3" ]; then
+    PYTHON_CMD="/usr/bin/python3"
+elif [ -f "/usr/local/bin/python3" ]; then
+    PYTHON_CMD="/usr/local/bin/python3"
+else
+    log_error "python3 not found in PATH or standard locations"
+    log_error "Searched: $(which python3 2>&1 || echo 'not found')"
     exit 1
 fi
 
-# Launch the controller with explicit Python path
-/usr/bin/python3 "$CONTROLLER_FILE" >> "$LOG_FILE" 2>&1
+log_message "Using Python: $PYTHON_CMD"
+log_message "Python version: $($PYTHON_CMD --version 2>&1)"
+
+# Check if Python can import required modules
+log_message "Checking Python dependencies..."
+if ! $PYTHON_CMD -c "import sys; print('Python OK')" 2>&1; then
+    log_error "Python is not working correctly"
+    exit 1
+fi
+
+# Launch the controller
+log_message "Launching LED Controller with: $PYTHON_CMD $CONTROLLER_FILE"
+$PYTHON_CMD "$CONTROLLER_FILE" >> "$LOG_FILE" 2>&1
 
 EXIT_CODE=$?
 log_message "LED Controller exited with code: $EXIT_CODE"
