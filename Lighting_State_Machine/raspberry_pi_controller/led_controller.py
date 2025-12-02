@@ -580,21 +580,21 @@ class LEDController:
         ]
         
         for i in range(led_count):
+            # Distribute colors across the strip (needed for both phases)
+            color_index = (i * len(colorful_colors)) // led_count
+            base_color = colorful_colors[color_index]
+            
             if phase in ["fade_to_warm", "hold_warm"]:
-                # Show warm white (fading in if needed)
                 if phase == "fade_to_warm":
-                    r = int(warm_white[0] * fade_progress)
-                    g = int(warm_white[1] * fade_progress)
-                    b = int(warm_white[2] * fade_progress)
+                    # Fade from colorful to warm white (smooth transition)
+                    r = int(base_color[0] * (1 - fade_progress) + warm_white[0] * fade_progress)
+                    g = int(base_color[1] * (1 - fade_progress) + warm_white[1] * fade_progress)
+                    b = int(base_color[2] * (1 - fade_progress) + warm_white[2] * fade_progress)
                 else:
+                    # Hold warm white
                     r, g, b = warm_white
                 pixels.append(self.rgb_to_bytes(r, g, b))
             else:
-                # Show colorful mix (fading in if needed)
-                # Distribute colors across the strip
-                color_index = (i * len(colorful_colors)) // led_count
-                base_color = colorful_colors[color_index]
-                
                 if phase == "fade_to_colorful":
                     # Fade from warm white to colorful
                     r = int(warm_white[0] * (1 - fade_progress) + base_color[0] * fade_progress)
