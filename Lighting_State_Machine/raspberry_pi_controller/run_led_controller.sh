@@ -32,25 +32,27 @@ log "=========================================="
 BOOT_FLAG_FILE="$SCRIPT_DIR/.update_on_boot_flag"
 SYSTEM_UPTIME=$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)
 
+# Calculate system boot time (current time - uptime)
+CURRENT_TIME=$(date +%s)
+SYSTEM_BOOT_TIME=$((CURRENT_TIME - SYSTEM_UPTIME))
+
 # Check if we should run update (only on fresh boot)
 RUN_UPDATE=false
 
 if [ ! -f "$BOOT_FLAG_FILE" ]; then
-    # No flag file exists - this is likely a fresh boot
+    # No flag file exists - this is a fresh boot
     RUN_UPDATE=true
     log "Fresh boot detected (uptime: ${SYSTEM_UPTIME}s). Will update from GitHub."
 else
-    # Flag file exists - check if it's from previous boot
+    # Flag file exists - check if it's from this boot or previous boot
     FLAG_MTIME=$(stat -c %Y "$BOOT_FLAG_FILE" 2>/dev/null || echo 0)
-    CURRENT_TIME=$(date +%s)
-    FLAG_AGE=$((CURRENT_TIME - FLAG_MTIME))
     
-    # If flag file is older than system uptime, it's from previous boot
-    if [ "$FLAG_AGE" -gt "$SYSTEM_UPTIME" ]; then
+    # If flag file was modified before system boot time, it's from previous boot
+    if [ "$FLAG_MTIME" -lt "$SYSTEM_BOOT_TIME" ]; then
         RUN_UPDATE=true
-        log "Fresh boot detected (uptime: ${SYSTEM_UPTIME}s, flag age: ${FLAG_AGE}s). Will update from GitHub."
+        log "Fresh boot detected (uptime: ${SYSTEM_UPTIME}s). Flag file is from previous boot. Will update from GitHub."
     else
-        log "Service restart detected (uptime: ${SYSTEM_UPTIME}s). Skipping update - already updated on boot."
+        log "Service restart detected (uptime: ${SYSTEM_UPTIME}s). Flag file is from this boot. Skipping update."
     fi
 fi
 
