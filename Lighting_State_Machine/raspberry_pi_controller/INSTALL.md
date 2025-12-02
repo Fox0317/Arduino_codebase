@@ -117,12 +117,18 @@ sudo journalctl -u led-controller.service -f
 
 ### Update Process
 
-1. **On Startup**: The `start_led_controller.sh` script runs first
-2. **Update Check**: It executes `update_from_github.sh`
-3. **GitHub Download**: Downloads latest `led_controller.py` from GitHub
-4. **Validation**: Verifies the downloaded file is valid Python
-5. **Backup**: Creates a backup of the old file before replacing
-6. **Launch**: Starts the LED controller with the updated file
+**Important**: Updates only run on system boot, not on service restarts. This prevents constant update checks.
+
+1. **On Boot**: The `start_led_controller.sh` script runs first
+2. **Boot Detection**: Checks system uptime to determine if this is a fresh boot
+3. **Update Check**: Only executes `update_from_github.sh` if it's a fresh boot
+4. **GitHub Download**: Downloads latest `led_controller.py` from GitHub
+5. **Validation**: Verifies the downloaded file is valid Python
+6. **Backup**: Creates a backup of the old file before replacing
+7. **Flag Creation**: Creates a flag file to prevent updates on service restarts
+8. **Launch**: Starts the LED controller with the updated file
+
+**Note**: If you manually restart the service (`sudo systemctl restart`), the update will NOT run. Updates only occur on actual system reboots.
 
 ### Service Management
 
@@ -175,21 +181,67 @@ sudo systemctl disable led-controller.service
 
 ### Service Won't Start
 
+**First, run the diagnostic script:**
+```bash
+cd ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
+chmod +x check_service.sh
+./check_service.sh
+```
+
+**Manual troubleshooting steps:**
+
 1. Check service status:
    ```bash
    sudo systemctl status led-controller.service
    ```
 
-2. Check logs:
+2. Check detailed logs:
    ```bash
-   sudo journalctl -u led-controller.service -n 50
+   sudo journalctl -u led-controller.service -n 50 -l
    ```
 
-3. Verify file paths in service file match your installation
+3. Verify service is enabled:
+   ```bash
+   systemctl is-enabled led-controller.service
+   ```
+   If not enabled, run: `sudo systemctl enable led-controller.service`
 
 4. Check file permissions:
    ```bash
-   ls -la ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller/
+   cd ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
+   ls -la
+   chmod +x start_led_controller.sh
+   chmod +x led_controller.py
+   chmod +x update_from_github.sh
+   ```
+
+5. Verify user is in gpio group (required for GPIO access):
+   ```bash
+   groups
+   ```
+   If `gpio` is not listed, add it:
+   ```bash
+   sudo usermod -a -G gpio $USER
+   ```
+   Then log out and back in, or reboot.
+
+6. Test startup script manually:
+   ```bash
+   cd ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
+   ./start_led_controller.sh
+   ```
+   This will show any errors that occur during startup.
+
+7. Verify Python dependencies:
+   ```bash
+   python3 -c "import RPi.GPIO; print('GPIO OK')"
+   ```
+   If this fails, install: `pip3 install RPi.GPIO`
+
+8. Reload systemd after making changes:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart led-controller.service
    ```
 
 ### Update Fails
@@ -244,13 +296,23 @@ The service waits for network connectivity before starting. If your network is s
 
 ## Manual Update
 
-To manually trigger an update without restarting:
+To manually trigger an update without restarting (bypasses boot-only restriction):
 
 ```bash
 cd ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
 ./update_from_github.sh
 sudo systemctl restart led-controller.service
 ```
+
+**Alternative**: To force an update on the next service restart (without running update script manually), delete the boot flag file:
+
+```bash
+cd ~/Arduino_codebase/Lighting_State_Machine/raspberry_pi_controller
+rm -f .update_on_boot_flag
+sudo systemctl restart led-controller.service
+```
+
+This will make the system think it's a fresh boot and run the update automatically.
 
 ## Backup Files
 
