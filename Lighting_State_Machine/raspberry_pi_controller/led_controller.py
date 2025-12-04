@@ -55,6 +55,7 @@ class AnimationState:
         
         # Initialize arrays for each strip with different lengths
         self.fire_heat = [[0] * count for count in NUM_LEDS_PER_STRIP]
+        self.cool_flame_heat = [[0] * count for count in NUM_LEDS_PER_STRIP]
         self.twinkle_state = [[random.randint(0, 255) for _ in range(count)] for count in NUM_LEDS_PER_STRIP]
         self.aurora_intensity = [[0] * count for count in NUM_LEDS_PER_STRIP]
         self.aurora_phase = 0
@@ -83,6 +84,7 @@ class LEDModes:
     TWINKLE = 11
     CHRISTMAS_TWINKLE = 12
     WARM_WHITE_COLORFUL_FADE = 13
+    COOL_FLAME = 14
 
 
 
@@ -608,6 +610,71 @@ class LEDController:
         
         return pixels
 
+    def mode_cool_flame(self, strip_index: int) -> List[bytes]:
+        """Cool flame animation mode with blue, white, and purple colors"""
+        pixels = []
+        led_count = NUM_LEDS_PER_STRIP[strip_index]
+        
+        # Cool down every cell (increased cooldown to prevent overheating)
+        for i in range(led_count):
+            self.state.cool_flame_heat[strip_index][i] = max(0, self.state.cool_flame_heat[strip_index][i] - random.randint(2, 4))
+        
+        # Heat diffusion (improved spreading with heat loss to prevent accumulation)
+        new_heat = [0] * led_count
+        for i in range(led_count):
+            left_heat = self.state.cool_flame_heat[strip_index][i-1] if i > 0 else 0
+            right_heat = self.state.cool_flame_heat[strip_index][i+1] if i < led_count-1 else 0
+            current_heat = self.state.cool_flame_heat[strip_index][i]
+            
+            # Weighted average with heat loss to prevent overheating
+            new_heat[i] = (left_heat * 0.25 + current_heat * 0.4 + right_heat * 0.25)
+            
+            # Add more dynamic randomness with cooling bias
+            if random.randint(0, 255) < 60:
+                fluctuation = random.randint(-8, 8)  # Balanced heating/cooling
+                new_heat[i] = max(0, min(200, new_heat[i] + fluctuation))  # Cap at 200 to prevent pure white
+        
+        self.state.cool_flame_heat[strip_index] = new_heat
+        
+        # Add sparks with reduced intensity to prevent overheating
+        if random.randint(0, 255) < 100:  # Reduced spark frequency
+            spark_pos = random.randint(0, led_count-1)
+            self.state.cool_flame_heat[strip_index][spark_pos] = min(200, self.state.cool_flame_heat[strip_index][spark_pos] + random.randint(80, 120))
+        
+        # Add multiple smaller sparks for more dynamic flame
+        if random.randint(0, 255) < 80:  # Reduced frequency
+            for _ in range(2):  # Add 2 smaller sparks
+                spark_pos = random.randint(0, led_count-1)
+                self.state.cool_flame_heat[strip_index][spark_pos] = min(200, self.state.cool_flame_heat[strip_index][spark_pos] + random.randint(40, 80))
+        
+        # Convert heat to cool flame colors (blue, purple, white)
+        for i in range(led_count):
+            heat = self.state.cool_flame_heat[strip_index][i]
+            if heat < 50:
+                # Dark blue to blue transition
+                r = 0
+                g = 0
+                b = min(255, heat * 5)
+            elif heat < 100:
+                # Blue to purple transition
+                r = min(128, (heat - 50) * 2.56)
+                g = 0
+                b = 255
+            elif heat < 150:
+                # Purple to white transition (adding green/red)
+                r = int(128 + (heat - 100) * 2.54)
+                g = int((heat - 100) * 2.54)
+                b = 255
+            else:
+                # White (full brightness with slight blue/purple tint)
+                r = int(255)
+                g = int(200 + (heat - 150) * 1.1)
+                b = 255
+            
+            pixels.append(self.rgb_to_bytes(min(255, int(r)), min(255, int(g)), min(255, int(b))))
+        
+        return pixels
+
     def mode_color(self, strip_index: int, r_base: int, g_base: int, b_base: int) -> List[bytes]:
         """Color mode with fixed brightness"""
         pixels = []
@@ -653,6 +720,8 @@ class LEDController:
             return self.mode_christmas_twinkle(strip_index)
         elif mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
             return self.mode_warm_white_colorful_fade(strip_index)
+        elif mode == LEDModes.COOL_FLAME:
+            return self.mode_cool_flame(strip_index)
         else:
             return self.mode_white(strip_index)
 
@@ -766,13 +835,13 @@ class LEDController:
         action = self.encoder.get_encoder_action()
         
         if action == "mode_up":
-            self.state.current_mode = (self.state.current_mode + 1) % 14
+            self.state.current_mode = (self.state.current_mode + 1) % 15
             # Reset fade cycle when entering warm white colorful fade mode
             if self.state.current_mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
                 self.state.fade_cycle_start_time = time.time()
             print(f"Mode changed to: {self.state.current_mode}")
         elif action == "mode_down":
-            self.state.current_mode = (self.state.current_mode - 1) % 14
+            self.state.current_mode = (self.state.current_mode - 1) % 15
             # Reset fade cycle when entering warm white colorful fade mode
             if self.state.current_mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
                 self.state.fade_cycle_start_time = time.time()
@@ -855,16 +924,16 @@ def main():
         if is_interactive:
             # Interactive mode - show command interface
             print("LED Controller started. Commands:")
-            print("m <mode> - Set mode (0-13)")
+            print("m <mode> - Set mode (0-14)")
             print("  Modes: 0=White, 1=Red, 2=Yellow, 3=Green, 4=Cyan, 5=Blue, 6=Magenta")
             print("         7=Solid Color, 8=Rainbow, 9=Fire, 10=Aurora, 11=Twinkle")
-            print("         12=Christmas Twinkle, 13=Warm White/Colorful Fade")
+            print("         12=Christmas Twinkle, 13=Warm White/Colorful Fade, 14=Cool Flame")
             print("b <brightness> - Set brightness (0-255)")
             print("s <strip> <on/off> - Set strip active state")
             print("sw - Check SPDT switch status")
             print("q - Quit")
             print("\nEncoder Controls:")
-            print("- Rotate encoder: Change mode (0-13)")
+            print("- Rotate encoder: Change mode (0-14)")
             print("- Hold button + rotate: Adjust brightness")
             print("- Press button only: No action")
             print("\nLED Configuration:")
