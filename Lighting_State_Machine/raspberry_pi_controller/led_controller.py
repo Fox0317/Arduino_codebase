@@ -85,6 +85,7 @@ class LEDModes:
     CHRISTMAS_TWINKLE = 12
     WARM_WHITE_COLORFUL_FADE = 13
     COOL_FLAME = 14
+    AURORA_BLUE_CYAN_MAGENTA = 15
 
 
 
@@ -477,6 +478,48 @@ class LEDController:
         
         return pixels
 
+    def mode_aurora_blue_cyan_magenta(self, strip_index: int) -> List[bytes]:
+        """Aurora animation with blue, cyan, and magenta colors"""
+        pixels = []
+        led_count = NUM_LEDS_PER_STRIP[strip_index]
+        
+        for i in range(led_count):
+            # Create wave patterns
+            wave1 = int(127 * (1 + math.sin((self.state.aurora_phase + i * 2) * math.pi / 128)))
+            wave2 = int(127 * (1 + math.sin((self.state.aurora_phase * 0.6 + i * 3) * math.pi / 128)))
+            wave3 = int(127 * (1 + math.sin((self.state.aurora_phase * 0.3 + i * 1) * math.pi / 128)))
+            
+            combined_wave = (wave1 * 2 + wave2 + wave3) // 4
+            self.state.aurora_intensity[strip_index][i] = combined_wave
+            
+            # Aurora colors (blue, cyan, magenta)
+            aurora_colors = [(0, 0, 255), (0, 255, 255), (255, 0, 255)]
+            color_position = combined_wave / 255.0
+            color_index = int(color_position * (len(aurora_colors) - 1))
+            
+            if color_index < len(aurora_colors) - 1:
+                blend_factor = color_position * (len(aurora_colors) - 1) - color_index
+                c1 = aurora_colors[color_index]
+                c2 = aurora_colors[color_index + 1]
+                r = int(c1[0] + (c2[0] - c1[0]) * blend_factor)
+                g = int(c1[1] + (c2[1] - c1[1]) * blend_factor)
+                b = int(c1[2] + (c2[2] - c1[2]) * blend_factor)
+            else:
+                r, g, b = aurora_colors[color_index]
+            
+            # Add variation
+            r += random.randint(-12, 12)
+            g += random.randint(-12, 12)
+            b += random.randint(-12, 12)
+            
+            r = max(0, min(255, r))
+            g = max(0, min(255, g))
+            b = max(0, min(255, b))
+            
+            pixels.append(self.rgb_to_bytes(r, g, b))
+        
+        return pixels
+
     def mode_twinkle(self, strip_index: int) -> List[bytes]:
         """Twinkle animation"""
         pixels = []
@@ -722,6 +765,8 @@ class LEDController:
             return self.mode_warm_white_colorful_fade(strip_index)
         elif mode == LEDModes.COOL_FLAME:
             return self.mode_cool_flame(strip_index)
+        elif mode == LEDModes.AURORA_BLUE_CYAN_MAGENTA:
+            return self.mode_aurora_blue_cyan_magenta(strip_index)
         else:
             return self.mode_white(strip_index)
 
@@ -782,7 +827,7 @@ class LEDController:
             self.state.hue = (self.state.hue + 1) % 360
         
         # Update aurora phase
-        if self.state.current_mode == LEDModes.AURORA:
+        if self.state.current_mode in [LEDModes.AURORA, LEDModes.AURORA_BLUE_CYAN_MAGENTA]:
             self.state.aurora_phase = (self.state.aurora_phase + 1) % 1000
         
 
@@ -835,13 +880,13 @@ class LEDController:
         action = self.encoder.get_encoder_action()
         
         if action == "mode_up":
-            self.state.current_mode = (self.state.current_mode + 1) % 15
+            self.state.current_mode = (self.state.current_mode + 1) % 16
             # Reset fade cycle when entering warm white colorful fade mode
             if self.state.current_mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
                 self.state.fade_cycle_start_time = time.time()
             print(f"Mode changed to: {self.state.current_mode}")
         elif action == "mode_down":
-            self.state.current_mode = (self.state.current_mode - 1) % 15
+            self.state.current_mode = (self.state.current_mode - 1) % 16
             # Reset fade cycle when entering warm white colorful fade mode
             if self.state.current_mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
                 self.state.fade_cycle_start_time = time.time()
@@ -924,10 +969,11 @@ def main():
         if is_interactive:
             # Interactive mode - show command interface
             print("LED Controller started. Commands:")
-            print("m <mode> - Set mode (0-14)")
+            print("m <mode> - Set mode (0-15)")
             print("  Modes: 0=White, 1=Red, 2=Yellow, 3=Green, 4=Cyan, 5=Blue, 6=Magenta")
             print("         7=Solid Color, 8=Rainbow, 9=Fire, 10=Aurora, 11=Twinkle")
             print("         12=Christmas Twinkle, 13=Warm White/Colorful Fade, 14=Cool Flame")
+            print("         15=Aurora Blue/Cyan/Magenta")
             print("b <brightness> - Set brightness (0-255)")
             print("s <strip> <on/off> - Set strip active state")
             print("sw - Check SPDT switch status")
