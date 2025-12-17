@@ -67,6 +67,9 @@ class AnimationState:
         # Warm white to colorful fade state
         self.fade_cycle_start_time = time.time()
         
+        # Red white green fade state
+        self.red_white_green_cycle_start_time = time.time()
+        
 
 # LED modes
 class LEDModes:
@@ -86,6 +89,7 @@ class LEDModes:
     WARM_WHITE_COLORFUL_FADE = 13
     COOL_FLAME = 14
     AURORA_BLUE_CYAN_MAGENTA = 15
+    RED_WHITE_GREEN_FADE = 16
 
 
 
@@ -718,6 +722,71 @@ class LEDController:
         
         return pixels
 
+    def mode_red_white_green_fade(self, strip_index: int) -> List[bytes]:
+        """Alternates between red, white, and green with 2s hold and 2s fade"""
+        pixels = []
+        led_count = NUM_LEDS_PER_STRIP[strip_index]
+        
+        # Cycle timing: Each color has 2s hold + 2s fade = 4s per color
+        # Total cycle: Red (4s) + White (4s) + Green (4s) = 12s
+        CYCLE_TIME = 12.0
+        HOLD_TIME = 2.0
+        FADE_TIME = 2.0
+        COLOR_TIME = HOLD_TIME + FADE_TIME  # 4s per color
+        
+        # Colors: Red, White, Green
+        colors = [
+            (255, 0, 0),      # Red
+            (255, 255, 255),  # White
+            (0, 255, 0),      # Green
+        ]
+        
+        # Calculate time in current cycle
+        current_time = time.time()
+        cycle_time = (current_time - self.state.red_white_green_cycle_start_time) % CYCLE_TIME
+        
+        # Determine which color phase we're in
+        if cycle_time < COLOR_TIME:
+            # Red phase
+            color_index = 0
+            phase_time = cycle_time
+        elif cycle_time < COLOR_TIME * 2:
+            # White phase
+            color_index = 1
+            phase_time = cycle_time - COLOR_TIME
+        else:
+            # Green phase
+            color_index = 2
+            phase_time = cycle_time - COLOR_TIME * 2
+        
+        # Determine if we're holding or fading
+        if phase_time < HOLD_TIME:
+            # Holding current color
+            current_color = colors[color_index]
+            r, g, b = current_color
+        else:
+            # Fading to next color
+            fade_progress = (phase_time - HOLD_TIME) / FADE_TIME
+            next_color_index = (color_index + 1) % len(colors)
+            current_color = colors[color_index]
+            next_color = colors[next_color_index]
+            
+            # Interpolate between current and next color
+            r = int(current_color[0] + (next_color[0] - current_color[0]) * fade_progress)
+            g = int(current_color[1] + (next_color[1] - current_color[1]) * fade_progress)
+            b = int(current_color[2] + (next_color[2] - current_color[2]) * fade_progress)
+        
+        # Clamp values
+        r = max(0, min(255, r))
+        g = max(0, min(255, g))
+        b = max(0, min(255, b))
+        
+        # Apply to all LEDs
+        for i in range(led_count):
+            pixels.append(self.rgb_to_bytes(r, g, b))
+        
+        return pixels
+
     def mode_color(self, strip_index: int, r_base: int, g_base: int, b_base: int) -> List[bytes]:
         """Color mode with fixed brightness"""
         pixels = []
@@ -767,6 +836,8 @@ class LEDController:
             return self.mode_cool_flame(strip_index)
         elif mode == LEDModes.AURORA_BLUE_CYAN_MAGENTA:
             return self.mode_aurora_blue_cyan_magenta(strip_index)
+        elif mode == LEDModes.RED_WHITE_GREEN_FADE:
+            return self.mode_red_white_green_fade(strip_index)
         else:
             return self.mode_white(strip_index)
 
@@ -880,16 +951,22 @@ class LEDController:
         action = self.encoder.get_encoder_action()
         
         if action == "mode_up":
-            self.state.current_mode = (self.state.current_mode + 1) % 16
+            self.state.current_mode = (self.state.current_mode + 1) % 17
             # Reset fade cycle when entering warm white colorful fade mode
             if self.state.current_mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
                 self.state.fade_cycle_start_time = time.time()
+            # Reset cycle when entering red white green fade mode
+            elif self.state.current_mode == LEDModes.RED_WHITE_GREEN_FADE:
+                self.state.red_white_green_cycle_start_time = time.time()
             print(f"Mode changed to: {self.state.current_mode}")
         elif action == "mode_down":
-            self.state.current_mode = (self.state.current_mode - 1) % 16
+            self.state.current_mode = (self.state.current_mode - 1) % 17
             # Reset fade cycle when entering warm white colorful fade mode
             if self.state.current_mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
                 self.state.fade_cycle_start_time = time.time()
+            # Reset cycle when entering red white green fade mode
+            elif self.state.current_mode == LEDModes.RED_WHITE_GREEN_FADE:
+                self.state.red_white_green_cycle_start_time = time.time()
             print(f"Mode changed to: {self.state.current_mode}")
         elif action == "brightness_up":
             self.state.brightness = min(255, self.state.brightness + 12)
@@ -930,6 +1007,9 @@ class LEDController:
         # Reset fade cycle when entering warm white colorful fade mode
         if mode == LEDModes.WARM_WHITE_COLORFUL_FADE:
             self.state.fade_cycle_start_time = time.time()
+        # Reset cycle when entering red white green fade mode
+        elif mode == LEDModes.RED_WHITE_GREEN_FADE:
+            self.state.red_white_green_cycle_start_time = time.time()
         print(f"Mode changed to: {mode}")
 
     def set_brightness(self, brightness: int):
@@ -969,17 +1049,17 @@ def main():
         if is_interactive:
             # Interactive mode - show command interface
             print("LED Controller started. Commands:")
-            print("m <mode> - Set mode (0-15)")
+            print("m <mode> - Set mode (0-16)")
             print("  Modes: 0=White, 1=Red, 2=Yellow, 3=Green, 4=Cyan, 5=Blue, 6=Magenta")
             print("         7=Solid Color, 8=Rainbow, 9=Fire, 10=Aurora, 11=Twinkle")
             print("         12=Christmas Twinkle, 13=Warm White/Colorful Fade, 14=Cool Flame")
-            print("         15=Aurora Blue/Cyan/Magenta")
+            print("         15=Aurora Blue/Cyan/Magenta, 16=Red/White/Green Fade")
             print("b <brightness> - Set brightness (0-255)")
             print("s <strip> <on/off> - Set strip active state")
             print("sw - Check SPDT switch status")
             print("q - Quit")
             print("\nEncoder Controls:")
-            print("- Rotate encoder: Change mode (0-14)")
+            print("- Rotate encoder: Change mode (0-16)")
             print("- Hold button + rotate: Adjust brightness")
             print("- Press button only: No action")
             print("\nLED Configuration:")
