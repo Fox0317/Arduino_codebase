@@ -666,7 +666,7 @@ class LEDController:
         for i in range(led_count):
             self.state.cool_flame_heat[strip_index][i] = max(0, self.state.cool_flame_heat[strip_index][i] - random.randint(2, 4))
         
-        # Heat diffusion (improved spreading with heat loss to prevent accumulation)
+        # Heats diffusion (improved spreading with heat loss to prevent accumulation)
         new_heat = [0] * led_count
         for i in range(led_count):
             left_heat = self.state.cool_flame_heat[strip_index][i-1] if i > 0 else 0
